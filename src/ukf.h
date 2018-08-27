@@ -34,6 +34,9 @@ public:
   ///* time when the state is true, in us
   long long time_us_;
 
+  // previous timestamp
+  double previous_timestamp_;
+
   ///* Process noise standard deviation longitudinal acceleration in m/s^2
   double std_a_;
 
@@ -67,6 +70,7 @@ public:
   ///* Sigma point spreading parameter
   double lambda_;
 
+  int num_runs_;
 
   /**
    * Constructor
@@ -102,6 +106,22 @@ public:
    * @param meas_package The measurement at k+1
    */
   void UpdateRadar(MeasurementPackage meas_package);
+
+
+  // Predict Steps:
+  void GenerateSigmaPoints(MatrixXd* Xsig_out);
+
+  void AugmentedSigmaPoints(MatrixXd* Xsig_out);
+  void SigmaPointPrediction(MatrixXd* Xsig_out, double delta_t);
+
+  void PredictMeanAndCovariance(VectorXd* x_pred, MatrixXd* P_pred);
+
+
+  //Update steps
+  void PredictRadarMeasurement(VectorXd* z_out, MatrixXd* S_out);
+  void PredictLidarMeasurement(VectorXd* z_out, MatrixXd* S_out);
+  void UpdateState(VectorXd* x_out, MatrixXd* P_out);
+
 };
 
 #endif /* UKF_H */

@@ -7,28 +7,10 @@
 
 using namespace std;
 
-// for convenience
-using json = nlohmann::json;
-
-// Checks if the SocketIO event has JSON data.
-// If there is data the JSON object in string format will be returned,
-// else the empty string "" will be returned.
-std::string hasData(std::string s) {
-  auto found_null = s.find("null");
-  auto b1 = s.find_first_of("[");
-  auto b2 = s.find_first_of("]");
-  if (found_null != std::string::npos) {
-    return "";
-  }
-  else if (b1 != std::string::npos && b2 != std::string::npos) {
-    return s.substr(b1, b2 - b1 + 1);
-  }
-  return "";
-}
 
 int main()
 {
-  uWS::Hub h;
+  
 
   // Create a Kalman Filter instance
   UKF ukf;
@@ -38,66 +20,43 @@ int main()
   vector<VectorXd> estimations;
   vector<VectorXd> ground_truth;
 
-  h.onMessage([&ukf,&tools,&estimations,&ground_truth](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
-    // "42" at the start of the message means there's a websocket message event.
-    // The 4 signifies a websocket message
-    // The 2 signifies a websocket event
+  
+    	//  long long timestamp;
+//R 1.014892e+00  5.543292e-01  4.892807e+00  1477010443050000  
+        //8.599968e-01  6.000449e-01  5.199747e+00  1.796856e-03  3.455661e-04  1.382155e-02
 
-    if (length && length > 2 && data[0] == '4' && data[1] == '2')
-    {
-
-      auto s = hasData(std::string(data));
-      if (s != "") {
-      	
-        auto j = json::parse(s);
-
-        std::string event = j[0].get<std::string>();
-        
-        if (event == "telemetry") {
-          // j[1] is the data JSON object
-          
-          string sensor_measurment = j[1]["sensor_measurement"];
-          
-          MeasurementPackage meas_package;
-          istringstream iss(sensor_measurment);
-    	  long long timestamp;
-
-    	  // reads first element from the current line
-    	  string sensor_type;
-    	  iss >> sensor_type;
+    	  
+    	  string sensor_type = "R";
+    	  MeasurementPackage meas_package;
 
     	  if (sensor_type.compare("L") == 0) {
       	  		meas_package.sensor_type_ = MeasurementPackage::LASER;
           		meas_package.raw_measurements_ = VectorXd(2);
-          		float px;
-      	  		float py;
-          		iss >> px;
-          		iss >> py;
-          		meas_package.raw_measurements_ << px, py;
-          		iss >> timestamp;
-          		meas_package.timestamp_ = timestamp;
+          		//float px;
+      	  		//float py;
+          		
+          		//meas_package.raw_measurements_ << px, py;
+          		
+          		//meas_package.timestamp_ = timestamp;
           } else if (sensor_type.compare("R") == 0) {
 
       	  		meas_package.sensor_type_ = MeasurementPackage::RADAR;
           		meas_package.raw_measurements_ = VectorXd(3);
-          		float ro;
-      	  		float theta;
-      	  		float ro_dot;
-          		iss >> ro;
-          		iss >> theta;
-          		iss >> ro_dot;
+          		float ro = 1.014892e+00;
+      	  		float theta = 5.543292e-01;
+      	  		float ro_dot = 4.892807e+00;
+          		
+
           		meas_package.raw_measurements_ << ro,theta, ro_dot;
-          		iss >> timestamp;
-          		meas_package.timestamp_ = timestamp;
+          		
+
+          		meas_package.timestamp_ = 1477010443050000;
           }
-          float x_gt;
-    	  float y_gt;
-    	  float vx_gt;
-    	  float vy_gt;
-    	  iss >> x_gt;
-    	  iss >> y_gt;
-    	  iss >> vx_gt;
-    	  iss >> vy_gt;
+        float x_gt = 8.599968e-01;
+    	  float y_gt = 6.000449e-01;
+    	  float vx_gt = 5.199747e+00;
+    	  float vy_gt =  1.796856e-03;
+    	  
     	  VectorXd gt_values(4);
     	  gt_values(0) = x_gt;
     	  gt_values(1) = y_gt; 
@@ -108,86 +67,82 @@ int main()
           //Call ProcessMeasurment(meas_package) for Kalman filter
     	  ukf.ProcessMeasurement(meas_package);    	  
 
+
     	  //Push the current estimated x,y positon from the Kalman filter's state vector
 
-    	  VectorXd estimate(4);
+        VectorXd estimate(4);
 
-    	  double p_x = ukf.x_(0);
-    	  double p_y = ukf.x_(1);
-    	  double v  = ukf.x_(2);
-    	  double yaw = ukf.x_(3);
+        double p_x = ukf.x_(0);
+        double p_y = ukf.x_(1);
+        double v  = ukf.x_(2);
+        double yaw = ukf.x_(3);
 
-    	  double v1 = cos(yaw)*v;
-    	  double v2 = sin(yaw)*v;
+        cout << "Some output:" << endl;
+        cout<< p_x << endl;
+        cout<< p_y << endl;
+        cout<< v << endl;
+        cout<< yaw << endl;
 
-    	  estimate(0) = p_x;
-    	  estimate(1) = p_y;
-    	  estimate(2) = v1;
-    	  estimate(3) = v2;
-    	  
-    	  estimations.push_back(estimate);
+/*
+        double v1 = cos(yaw)*v;
+        double v2 = sin(yaw)*v;
 
-    	  VectorXd RMSE = tools.CalculateRMSE(estimations, ground_truth);
-
-          json msgJson;
-          msgJson["estimate_x"] = p_x;
-          msgJson["estimate_y"] = p_y;
-          msgJson["rmse_x"] =  RMSE(0);
-          msgJson["rmse_y"] =  RMSE(1);
-          msgJson["rmse_vx"] = RMSE(2);
-          msgJson["rmse_vy"] = RMSE(3);
-          auto msg = "42[\"estimate_marker\"," + msgJson.dump() + "]";
-          // std::cout << msg << std::endl;
-          ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-	  
-        }
-      } else {
+        estimate(0) = p_x;
+        estimate(1) = p_y;
+        estimate(2) = v1;
+        estimate(3) = v2;
         
-        std::string msg = "42[\"manual\",{}]";
-        ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-      }
-    }
+        estimations.push_back(estimate);
 
-  });
+        VectorXd RMSE = tools.CalculateRMSE(estimations, ground_truth);
+*/
 
-  // We don't need this since we're not using HTTP but if it's removed the program
-  // doesn't compile :-(
-  h.onHttpRequest([](uWS::HttpResponse *res, uWS::HttpRequest req, char *data, size_t, size_t) {
-    const std::string s = "<h1>Hello world!</h1>";
-    if (req.getUrl().valueLength == 1)
-    {
-      res->end(s.data(), s.length());
-    }
-    else
-    {
-      // i guess this should be done more gracefully?
-      res->end(nullptr, 0);
-    }
-  });
 
-  h.onConnection([&h](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
-    std::cout << "Connected!!!" << std::endl;
-  });
+//R 1.047505e+00  3.892401e-01  4.511325e+00  1477010443150000 
+// 1.379955e+00  6.006288e-01  5.198979e+00  1.077814e-02  2.073124e-03  2.763437e-02
 
-  h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code, char *message, size_t length) {
-    ws.close();
-    std::cout << "Disconnected" << std::endl;
-  });
+        meas_package.sensor_type_ = MeasurementPackage::RADAR;
+        meas_package.raw_measurements_ = VectorXd(3);
+        float ro2 = 1.047505e+00 ;
+        float theta2 = 3.892401e-01;
+        float ro_dot2 = 4.511325e+00;
+        
 
-  int port = 4567;
-  if (h.listen(port))
-  {
-    std::cout << "Listening to port " << port << std::endl;
-  }
-  else
-  {
-    std::cerr << "Failed to listen to port" << std::endl;
-    return -1;
-  }
-  h.run();
+        meas_package.raw_measurements_ << ro2,theta2, ro_dot2;
+        
+
+        meas_package.timestamp_ = 1477010443150000;
+          
+        float x_gt2 = 1.379955e+00;
+        float y_gt2 = 6.006288e-01;
+        float vx_gt2 = 5.198979e+00;
+        float vy_gt2 =  1.077814e-02;
+        
+        //VectorXd gt_values(4);
+        gt_values(0) = x_gt2;
+        gt_values(1) = y_gt2; 
+        gt_values(2) = vx_gt2;
+        gt_values(3) = vy_gt2;
+        ground_truth.push_back(gt_values);
+          
+          //Call ProcessMeasurment(meas_package) for Kalman filter
+        ukf.ProcessMeasurement(meas_package);
+
+
+        double p_x2 = ukf.x_(0);
+        double p_y2 = ukf.x_(1);
+        double v2  = ukf.x_(2);
+        double yaw2 = ukf.x_(3);
+
+        cout << "Some output:" << endl;
+        cout<< p_x2 << endl;
+        cout<< p_y2 << endl;
+        cout<< v2 << endl;
+        cout<< yaw2 << endl;
+
+
 }
-
-
+  
 
 
 
