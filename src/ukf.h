@@ -72,6 +72,12 @@ public:
 
   int num_runs_;
 
+  VectorXd z_radar_pred_;
+
+  // initial covariance matrix
+  MatrixXd S_radar_pred_;
+
+  MatrixXd Zsig_;
   /**
    * Constructor
    */
