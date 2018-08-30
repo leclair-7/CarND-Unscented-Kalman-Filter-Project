@@ -77,6 +77,11 @@ public:
   // initial covariance matrix
   MatrixXd S_radar_pred_;
 
+  VectorXd z_lidar_pred_;
+
+  // initial covariance matrix
+  MatrixXd S_lidar_pred_;
+
   MatrixXd Zsig_;
   /**
    * Constructor
@@ -105,7 +110,7 @@ public:
    * Updates the state and the state covariance matrix using a laser measurement
    * @param meas_package The measurement at k+1
    */
-  void UpdateLidar(MeasurementPackage meas_package);
+  void UpdateLidar(MeasurementPackage meas_package, VectorXd z_out, MatrixXd S_out);
 
   /**
    * Updates the state and the state covariance matrix using a radar measurement
