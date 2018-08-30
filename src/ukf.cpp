@@ -26,7 +26,7 @@ UKF::UKF() {
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
   // 2 * sqrt 2, because 8 m2/s4 is super fast and maybe humanly possible
-  std_a_ = 2.83;
+  std_a_ = .2;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
   // 
@@ -111,6 +111,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
             yaw
             yaw_rate_of_change
            */
+
            x_(0) = x;
            x_(1) = y;
            x_(2) = velocity;
@@ -118,6 +119,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
            x_(4) = 0.0;
           
         } else if (meas_package.sensor_type_ == MeasurementPackage::LASER) {     
+
            /*
             px
             py
@@ -125,11 +127,13 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
             yaw
             yaw_rate_of_change
            */
+
            x_(0) = meas_package.raw_measurements_(0);
            x_(1) = meas_package.raw_measurements_(1);
            x_(2) = 2;
            x_(3) = atan2(x_(1), x_(0)) ;
-           x_(4) = 0.0;     
+           x_(4) = 0.0;  
+
         }
 
         is_initialized_ = true;
@@ -492,43 +496,30 @@ void UKF::AugmentedSigmaPoints(MatrixXd* Xsig_out) {
 
   //create augmented mean vector, put current state values in it, x_ 
   VectorXd x_aug = VectorXd(7);
-  for(int i=0; i < n_aug_;i++){
-      if (i < n_x_){  
-          x_aug(i) = x_(i);
-          
-      }else{
-          x_aug(i)=0;
-      }
-  }
-
   MatrixXd P_aug = MatrixXd(n_aug_, n_aug_);
+  
+  //populate x_aug
+  x_aug.head(5) = x_;
+  x_aug(5) = 0;
+  x_aug(6) = 0;
+
+  //populate P_aug
+  P_aug.fill(0.0);
   P_aug.topLeftCorner(n_x_, n_x_) = P_;
   P_aug(n_x_, n_x_) = Q(0, 0);
   P_aug(n_x_ + 1, n_x_ + 1) = Q(1, 1);
   
-  //the sqrt of the P_aug matrix  
-  MatrixXd A = P_aug.llt().matrixL();
-  
-  //create sigma point matrix
+  //create square root matrix
+  MatrixXd L = P_aug.llt().matrixL();
   MatrixXd Xsig_aug = MatrixXd(n_aug_, 2 * n_aug_ + 1);
 
-/*******************************************************************************
- * Student part begin
- ******************************************************************************/
- 
-  //create augmented mean state
-  //create augmented covariance matrix
-  //create square root matrix
   //create augmented sigma points
-  
-  
-for(int row=0; row<n_aug_; row++){
-    Xsig_aug(row,0) = x_aug(row);
-    for(int col=1; col<= n_aug_ ; col++)  {
-        Xsig_aug(row,col) = x_aug(row) + sqrt(lambda_ + n_aug_) * A(row,(col-1));
-        Xsig_aug(row,col+n_aug_) = x_aug(row) - sqrt(lambda_ + n_aug_) * A(row,(col-1)); 
-    }
-}
+  Xsig_aug.col(0)  = x_aug;
+  for (int i = 0; i< n_aug_; i++)
+  {
+    Xsig_aug.col(i+1)       = x_aug + sqrt(lambda_+n_aug_) * L.col(i);
+    Xsig_aug.col(i+1+n_aug_) = x_aug - sqrt(lambda_+n_aug_) * L.col(i);
+  }
     
   *Xsig_out = Xsig_aug;
 
