@@ -83,6 +83,10 @@ public:
   MatrixXd S_lidar_pred_;
 
   MatrixXd Zsig_;
+
+  double nis_;
+
+  double nis_array_[500];
   /**
    * Constructor
    */
