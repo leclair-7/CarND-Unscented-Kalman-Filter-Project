@@ -72,13 +72,6 @@ UKF::UKF() {
     weights_(i) = weight;
   }
 
-  /*
-  TODO:
-
-  Complete the initialization. See ukf.h for other member properties.
-
-  Hint: one or more values initialized above might be wildly off...
-  */
 }
 
 UKF::~UKF() {}
@@ -174,7 +167,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
    Prediction( dt );
 
 
-    if (meas_package.sensor_type_ == MeasurementPackage::RADAR) { 
+    if (meas_package.sensor_type_ == MeasurementPackage::RADAR and use_radar_) { 
         
         // Clear the prediction
         z_radar_pred_ = VectorXd(3);
@@ -185,7 +178,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 
         UpdateRadar( meas_package, z_radar_pred_, S_radar_pred_ );
 
-    } else if (meas_package.sensor_type_ == MeasurementPackage::LASER) {     
+    } else if (meas_package.sensor_type_ == MeasurementPackage::LASER and use_laser_) {     
         
         
         z_lidar_pred_ = VectorXd(2);
@@ -347,7 +340,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package, VectorXd z_radar_pred_, M
   P_ = P_ - K * S_radar_pred_ * K.transpose();
 
   nis_ = (z - z_radar_pred_).transpose() * ( S_radar_pred_.inverse()) * (z - z_radar_pred_);
-  std::cout<< "radar nis_: " << nis_ << endl;
+  //std::cout<< "radar nis_: " << nis_ << endl;
 
    //std::cout << "Updated state x: " << std::endl << x_ << std::endl;
    //std::cout << "Updated state covariance P: " << std::endl << P_ << std::endl;
@@ -661,7 +654,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package, VectorXd z_lidar_pred_, M
 
   nis_ = (z - z_lidar_pred_).transpose() * ( S_lidar_pred_.inverse()) * (z - z_lidar_pred_);
 
-  std::cout<< "lidar nis_: " << nis_ << endl;
+  //std::cout<< "lidar nis_: " << nis_ << endl;
 
   /*
    std::cout << "Updated state x: " << std::endl << x_ << std::endl;
