@@ -28,11 +28,11 @@ UKF::UKF() {
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
   // 2 * sqrt 2, because 8 m2/s4 is super fast and maybe humanly possible
-  std_a_ = 1.5;
+  std_a_ = .6;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
   // 
-  std_yawdd_ = .7;
+  std_yawdd_ = .8;
   
   //DO NOT MODIFY measurement noise values below these are provided by the sensor manufacturer.
   // Laser measurement noise standard deviation position1 in m
@@ -63,6 +63,11 @@ UKF::UKF() {
 
   nis_ = 0.0;
 
+  H_laser_ = MatrixXd(2,5);
+  H_laser_.fill(0);
+  H_laser_(0,0) = 1;
+  H_laser_(1,1) = 1;
+
   weights_ = VectorXd(2*n_aug_+1);
 
   double weight_0 = lambda_/(lambda_+n_aug_);
@@ -71,6 +76,10 @@ UKF::UKF() {
     double weight = 0.5/(n_aug_+lambda_);
     weights_(i) = weight;
   }
+
+  R_ = MatrixXd(2,2);
+  R_ <<    std_laspx_*std_laspx_, 0, 
+          0, std_laspy_*std_laspy_;
 
 }
 
@@ -184,9 +193,9 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
         z_lidar_pred_ = VectorXd(2);
         S_lidar_pred_ = MatrixXd(2, 2);
               
-        PredictLidarMeasurement( &z_lidar_pred_, &S_lidar_pred_);
+       PredictLidarMeasurement( &z_lidar_pred_, &S_lidar_pred_);
 
-        UpdateLidar( meas_package, z_lidar_pred_, S_lidar_pred_ );
+       UpdateLidar( meas_package, z_lidar_pred_, S_lidar_pred_ );
       }
 }
 
@@ -555,11 +564,12 @@ void UKF::PredictLidarMeasurement(VectorXd* z_out, MatrixXd* S_out) {
   }
 
   //add measurement noise covariance matrix
-  MatrixXd R = MatrixXd(n_z,n_z);
-  R <<    std_laspx_*std_laspx_, 0, 
-          0, std_laspy_*std_laspy_;
-  S = S + R;
 
+  MatrixXd R_ = MatrixXd(2,2);
+  R_ <<    std_laspx_*std_laspx_, 0, 
+          0, std_laspy_*std_laspy_;
+  
+  S = S + R_;
   
 /*******************************************************************************
  * Student part end
@@ -579,34 +589,16 @@ void UKF::PredictLidarMeasurement(VectorXd* z_out, MatrixXd* S_out) {
  * @param {MeasurementPackage} meas_package
  */
   /**
-  TODO:
 
-  Complete this function! Use lidar data to update the belief about the object's
-  position. Modify the state vector, x_, and covariance, P_.
-
-  You'll also need to calculate the lidar NIS.
 */
 void UKF::UpdateLidar(MeasurementPackage meas_package, VectorXd z_lidar_pred_, MatrixXd S_lidar_pred_) {
   /**
-  TODO:
-
-  Complete this function! Use radar data to update the belief about the object's
+  Uses lidar data to update the belief about the object's
   position. Modify the state vector, x_, and covariance, P_.
 
-  You'll also need to calculate the radar NIS.
+  Calculation of NIS done in ProcessMeasurement
   */
   int n_z = 2;
-
-  // already have sig pred, i.e. Xsig_pred_
-
-  /*
-  Xsig_pred_ 
-  x_
-  P_
-  Zsig_
-  z_radar_pred_
-  S_radar_pred_ 
-  */
 
   double px     = meas_package.raw_measurements_[0];
   double py     = meas_package.raw_measurements_[1];
@@ -616,48 +608,17 @@ void UKF::UpdateLidar(MeasurementPackage meas_package, VectorXd z_lidar_pred_, M
   z(0) = px;
   z(1) = py;
   
-  //create matrix for cross correlation Tc
-  MatrixXd Tc = MatrixXd(n_x_, n_z);
-
-  //calculate cross correlation matrix
-  Tc.fill(0.0);
-  for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //2n+1 simga points
-
-    //residual
-    VectorXd z_diff = Zsig_.col(i) - z_lidar_pred_;
-    //angle normalization
-    //while (z_diff(1)> M_PI) z_diff(1)-=2.*M_PI;
-    //while (z_diff(1)<-M_PI) z_diff(1)+=2.*M_PI;
-
-    // state difference
-    VectorXd x_diff = Xsig_pred_.col(i) - x_;
-    //angle normalization
-    //while (x_diff(3)> M_PI) x_diff(3)-=2.*M_PI;
-    //while (x_diff(3)<-M_PI) x_diff(3)+=2.*M_PI;
-
-    Tc = Tc + weights_(i) * x_diff * z_diff.transpose();
-  }
-
-  //Kalman gain K;
-  MatrixXd K = Tc * S_lidar_pred_.inverse();
-
-  //residual
-  VectorXd z_diff = z - z_lidar_pred_;
-
-  //angle normalization
-  //while (z_diff(1)> M_PI) z_diff(1)-=2.*M_PI;
-  //while (z_diff(1)<-M_PI) z_diff(1)+=2.*M_PI;
-
-  //update state mean and covariance matrix
-  x_ = x_ + K * z_diff;
-  P_ = P_ - K * S_lidar_pred_ * K.transpose();
-
-  nis_ = (z - z_lidar_pred_).transpose() * ( S_lidar_pred_.inverse()) * (z - z_lidar_pred_);
-
-  //std::cout<< "lidar nis_: " << nis_ << endl;
-
-  /*
-   std::cout << "Updated state x: " << std::endl << x_ << std::endl;
-   std::cout << "Updated state covariance P: " << std::endl << P_ << std::endl;
-  */
+  //1
+  VectorXd y_ = (z - (H_laser_ * x_));
+  //2
+  MatrixXd S_ = (H_laser_ * P_ * (H_laser_.transpose())) + R_;
+  //3
+  MatrixXd K_ = (P_ * (H_laser_.transpose())  * (S_.inverse())) ;
+  //4
+  x_ = x_ + K_ * y_;
+  //5
+  MatrixXd I = MatrixXd::Identity(5,5);
+  //6
+  P_ = (I - K_ * H_laser_ ) * P_;
+ 
 }

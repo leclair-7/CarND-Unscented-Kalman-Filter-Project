@@ -79,8 +79,13 @@ public:
 
   VectorXd z_lidar_pred_;
 
+  MatrixXd H_laser_;
+
   // initial covariance matrix
   MatrixXd S_lidar_pred_;
+
+  //laser covariance
+  MatrixXd R_;
 
   MatrixXd Zsig_;
 
