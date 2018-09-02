@@ -11,7 +11,7 @@ using std::vector;
 
 /**
  * Initializes Unscented Kalman filter
- * This is scaffolding, do not modify
+ * 
  */
 UKF::UKF() {
   // if this is false, laser measurements will be ignored (except during init)
@@ -32,7 +32,7 @@ UKF::UKF() {
 
   // Process noise standard deviation yaw acceleration in rad/s^2
   // 
-  std_yawdd_ = .8;
+  std_yawdd_ = .7;
   
   //DO NOT MODIFY measurement noise values below these are provided by the sensor manufacturer.
   // Laser measurement noise standard deviation position1 in m
@@ -106,7 +106,6 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
           } 
         }
         loggerman.close();
-
     }
     */
     //cout<< "num_runs_: " << num_runs_<<endl;
@@ -190,12 +189,12 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     } else if (meas_package.sensor_type_ == MeasurementPackage::LASER and use_laser_) {     
         
         
-        z_lidar_pred_ = VectorXd(2);
-        S_lidar_pred_ = MatrixXd(2, 2);
+       //z_lidar_pred_ = VectorXd(2);
+       //S_lidar_pred_ = MatrixXd(2, 2);
               
-       PredictLidarMeasurement( &z_lidar_pred_, &S_lidar_pred_);
+       //PredictLidarMeasurement( &z_lidar_pred_, &S_lidar_pred_);
 
-       UpdateLidar( meas_package, z_lidar_pred_, S_lidar_pred_ );
+       UpdateLidar( meas_package );
       }
 }
 
@@ -210,23 +209,16 @@ void UKF::Prediction(double delta_t) {
     
     AugmentedSigmaPoints(&Xsig_pred_);
     
-    // cout<< "Bubbles:"<<endl;
-    // cout<< Xsig_pred_ << endl;
     SigmaPointPrediction(&Xsig_pred_, delta_t);
     
-    //cout << "Class var before predict mean x_" << x_ << endl;
     PredictMeanAndCovariance( &x_,  &P_ );
-    //cout << "Class var post-predict-mean x_" << x_ << endl;
-
-
 }
 
 
 void UKF::SigmaPointPrediction(MatrixXd* Xsig_out, double delta_t) {
 
-  //MatrixXd Xsig_aug = Xsig_pred_;
 
-//create matrix with predicted sigma points as columns
+  //create matrix with predicted sigma points as columns
   MatrixXd Xsig_pred = MatrixXd(n_x_, 2 * n_aug_ + 1);
   Xsig_pred.fill(0.0);
 
@@ -518,70 +510,10 @@ void UKF::AugmentedSigmaPoints(MatrixXd* Xsig_out) {
 }
 
 void UKF::PredictLidarMeasurement(VectorXd* z_out, MatrixXd* S_out) {
+  /*
+    Since Lidar is linear, we don't need the sigma points, given nonlinear data that would be relevant
+  */
 
-  //set measurement dimension, radar can measure r, phi, and r_dot
-  int n_z = 2;
-
-  //create matrix for sigma points in measurement space
-  Zsig_ = MatrixXd(n_z, 2 * n_aug_ + 1);
-
-
-  //transform sigma points into measurement space
-  for (int i = 0; i < 2 * n_aug_ + 1; i++) {
-
-    // extract values for better readibility
-    double p_x = Xsig_pred_(0,i);
-    double p_y = Xsig_pred_(1,i);
-    
-    // measurement model
-    //Zsig_(0,i) = sqrt(p_x*p_x + p_y*p_y);                        //r
-    //Zsig_(1,i) = atan2(p_y,p_x);                                 //phi
-    //Zsig_(2,i) = (p_x*v1 + p_y*v2 ) / sqrt(p_x*p_x + p_y*p_y);   //r_dot
-
-    Zsig_(0,i) = p_x;
-    Zsig_(1,i) = p_y;
-  }
-
-  //mean predicted measurement
-  VectorXd z_pred = VectorXd(n_z);
-  z_pred.fill(0.0);
-  for (int i=0; i < 2*n_aug_+1; i++) {
-      z_pred = z_pred + weights_(i) * Zsig_.col(i);
-  }
-
-  //innovation covariance matrix S
-  MatrixXd S = MatrixXd(n_z,n_z);
-  S.fill(0.0);
-  for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //2n+1 simga points
-    //residual
-    VectorXd z_diff = Zsig_.col(i) - z_pred;
-
-    //angle normalization
-    while (z_diff(1)> M_PI) z_diff(1)-=2.*M_PI;
-    while (z_diff(1)<-M_PI) z_diff(1)+=2.*M_PI;
-
-    S = S + weights_(i) * z_diff * z_diff.transpose();
-  }
-
-  //add measurement noise covariance matrix
-
-  MatrixXd R_ = MatrixXd(2,2);
-  R_ <<    std_laspx_*std_laspx_, 0, 
-          0, std_laspy_*std_laspy_;
-  
-  S = S + R_;
-  
-/*******************************************************************************
- * Student part end
- ******************************************************************************/
-
-  //print result
-  //std::cout << "z_pred: " << std::endl << z_pred << std::endl;
-  //std::cout << "S: " << std::endl << S << std::endl;
-
-  //write result
-  *z_out = z_pred;
-  *S_out = S;
 }
 
 /**
@@ -589,9 +521,8 @@ void UKF::PredictLidarMeasurement(VectorXd* z_out, MatrixXd* S_out) {
  * @param {MeasurementPackage} meas_package
  */
   /**
-
 */
-void UKF::UpdateLidar(MeasurementPackage meas_package, VectorXd z_lidar_pred_, MatrixXd S_lidar_pred_) {
+void UKF::UpdateLidar(MeasurementPackage meas_package) {
   /**
   Uses lidar data to update the belief about the object's
   position. Modify the state vector, x_, and covariance, P_.
