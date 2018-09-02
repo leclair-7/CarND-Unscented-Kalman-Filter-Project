@@ -9,6 +9,7 @@ using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using std::vector;
 
+#define EPSILON .001
 /**
  * Initializes Unscented Kalman filter
  * 
@@ -28,10 +29,9 @@ UKF::UKF() {
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
   // 2 * sqrt 2, because 8 m2/s4 is super fast and maybe humanly possible
-  std_a_ = .6;
+  std_a_ = .9;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  // 
   std_yawdd_ = .7;
   
   //DO NOT MODIFY measurement noise values below these are provided by the sensor manufacturer.
@@ -85,6 +85,74 @@ UKF::UKF() {
 
 UKF::~UKF() {}
 
+double UKF::Safe_atan2(double vy, double vx){
+  if (vy < EPSILON and vx < EPSILON){
+    return 0.0;
+  } else {
+    return atan2(vy, vx);
+  }
+}
+
+/**
+ * @param {MeasurementPackage} meas_package The latest measurement data of
+ * either radar or laser.
+ */
+void UKF::InitValues(MeasurementPackage meas_package){
+
+        //compute the time elapsed between the current and previous measurements
+        previous_timestamp_ = meas_package.timestamp_;
+
+        x_ = VectorXd(n_x_);
+        P_ = MatrixXd::Identity(n_x_,n_x_);
+
+
+        if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {     
+
+           
+           double rho = meas_package.raw_measurements_[0];
+           double phi = meas_package.raw_measurements_[1];
+           double rho_dot = meas_package.raw_measurements_[2];
+           double x= rho * cos(phi);
+           double y= rho * sin(phi);
+           double vx = rho_dot * cos(phi);
+           double vy = rho_dot * sin(phi);
+           
+           double velocity = sqrt( pow(vx,2) + pow(vy,2) );
+           
+           /*
+            px
+            py
+            v
+            yaw
+            yaw_rate_of_change
+           */
+
+           x_(0) = x;
+           x_(1) = y;
+           x_(2) = velocity;
+           x_(3) = Safe_atan2(vy, vx);     
+           x_(4) = 0.2;
+          
+        } else if (meas_package.sensor_type_ == MeasurementPackage::LASER) {     
+
+           /*
+            px
+            py
+            v
+            yaw
+            yaw_rate_of_change
+           */
+
+           x_(0) = meas_package.raw_measurements_(0);
+           x_(1) = meas_package.raw_measurements_(1);
+           x_(2) = 1.5;           
+           x_(3) = Safe_atan2(x_(1), x_(0)) ;         
+           x_(4) = 0.0;  
+
+        }
+      return;
+}
+
 /**
  * @param {MeasurementPackage} meas_package The latest measurement data of
  * either radar or laser.
@@ -109,67 +177,14 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     }
     */
     //cout<< "num_runs_: " << num_runs_<<endl;
-    double dt;
     if ( !is_initialized_){
-
-        //compute the time elapsed between the current and previous measurements
-        dt = (meas_package.timestamp_ - previous_timestamp_) / 1000000.0; //dt - expressed in seconds
-        previous_timestamp_ = meas_package.timestamp_;
-
-
-        x_ = VectorXd(n_x_);
-        P_ = MatrixXd::Identity(n_x_,n_x_);
-
-        if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {     
-
-           double rho = meas_package.raw_measurements_[0];
-           double phi = meas_package.raw_measurements_[1];
-           double rho_dot = meas_package.raw_measurements_[2];
-           double x= rho * cos(phi);
-           double y= rho * sin(phi);
-           double vx = rho_dot * cos(phi);
-           double vy = rho_dot * sin(phi);
-           
-           double velocity = sqrt( pow(vx,2) + pow(vy,2) );
-
-           
-           /*
-            px
-            py
-            v
-            yaw
-            yaw_rate_of_change
-           */
-
-           x_(0) = x;
-           x_(1) = y;
-           x_(2) = velocity;
-           x_(3) =  atan2(vy, vx) ;
-           x_(4) = 0.2;
-          
-        } else if (meas_package.sensor_type_ == MeasurementPackage::LASER) {     
-
-           /*
-            px
-            py
-            v
-            yaw
-            yaw_rate_of_change
-           */
-
-           x_(0) = meas_package.raw_measurements_(0);
-           x_(1) = meas_package.raw_measurements_(1);
-           x_(2) = 1.5;
-           x_(3) = atan2(x_(1), x_(0)) ;
-           x_(4) = 0.0;  
-
-        }
+        InitValues(meas_package);
 
         is_initialized_ = true;
         return;
-   }//end initialize if block
+   }
    
-   dt = (meas_package.timestamp_ - previous_timestamp_) / 1000000.0; //dt - expressed in seconds
+   double dt = (meas_package.timestamp_ - previous_timestamp_) / 1000000.0; //dt - expressed in seconds
    previous_timestamp_ = meas_package.timestamp_;
    
    Prediction( dt );
@@ -187,13 +202,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
         UpdateRadar( meas_package, z_radar_pred_, S_radar_pred_ );
 
     } else if (meas_package.sensor_type_ == MeasurementPackage::LASER and use_laser_) {     
-        
-        
-       //z_lidar_pred_ = VectorXd(2);
-       //S_lidar_pred_ = MatrixXd(2, 2);
-              
-       //PredictLidarMeasurement( &z_lidar_pred_, &S_lidar_pred_);
-
+      
        UpdateLidar( meas_package );
       }
 }
@@ -371,8 +380,8 @@ void UKF::PredictRadarMeasurement(VectorXd* z_out, MatrixXd* S_out) {
 
     // measurement model
     Zsig_(0,i) = sqrt(p_x*p_x + p_y*p_y);                        //r
-    Zsig_(1,i) = atan2(p_y,p_x);                                 //phi
-    Zsig_(2,i) = (p_x*v1 + p_y*v2 ) / sqrt(p_x*p_x + p_y*p_y);   //r_dot
+    Zsig_(1,i) = Safe_atan2(p_y,p_x);                         //phi
+    Zsig_(2,i) = (p_x*v1 + p_y*v2 ) / std::max(EPSILON, sqrt(p_x*p_x + p_y*p_y));   //r_dot
   }
 
   //mean predicted measurement

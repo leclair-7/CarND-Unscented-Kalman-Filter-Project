@@ -102,6 +102,18 @@ public:
    */
   virtual ~UKF();
 
+   /**
+   * InitValues
+   * @param meas_package The first measurement data of either radar or laser
+   */
+  double Safe_atan2(double vx, double vy);
+
+  /**
+   * InitValues
+   * @param meas_package The first measurement data of either radar or laser
+   */
+  void InitValues(MeasurementPackage meas_package);
+
   /**
    * ProcessMeasurement
    * @param meas_package The latest measurement data of either radar or laser
